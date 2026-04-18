@@ -14,9 +14,14 @@
             --card-bg: #ffffff; --text-color: #333333;
             transition: all 0.4s ease;
         }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; color: var(--text-color); }
+        body { 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            color: var(--text-color); 
+        }
         
-        /* PERBAIKAN: Container tidak boleh overflow hidden agar bisa scroll */
+        /* PERBAIKAN: Scrolling lebih smooth */
         .container { 
             max-width: 950px; 
             margin: 20px auto; 
@@ -24,16 +29,24 @@
             border-radius: 12px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
             min-height: 600px; 
-            overflow: visible; /* Diubah dari hidden agar data bawah kelihatan */
+            overflow-y: auto; 
+            overflow-x: hidden;
+            position: relative;
         }
         
-        .nav { display: flex; background: var(--card-bg); border-bottom: 1px solid var(--gray); position: sticky; top: 0; z-index: 1000; }
+        .nav { 
+            display: flex; 
+            background: var(--card-bg); 
+            border-bottom: 1px solid var(--gray); 
+            position: sticky; 
+            top: 0; 
+            z-index: 1001; 
+        }
         .nav button { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-weight: bold; color: var(--text-color); transition: 0.3s; }
         .nav button.active { border-bottom: 3px solid var(--primary); color: var(--primary); }
 
-        .content { padding: 25px; height: auto; }
+        .content { padding: 25px; }
         
-        /* PERBAIKAN: Card harus fleksibel tingginya */
         .card { 
             border: 1px solid var(--gray); 
             border-radius: 10px; 
@@ -41,7 +54,7 @@
             margin-bottom: 20px; 
             background: var(--card-bg); 
             position: relative; 
-            height: auto !important; 
+            height: auto; 
         }
 
         .session-header { background: var(--gradient); color: white; padding: 15px; margin: -20px -20px 20px -20px; border-radius: 10px 10px 0 0; font-weight: bold; }
@@ -58,20 +71,21 @@
 
         .hidden { display: none !important; }
         
-        /* PERBAIKAN: Area hasil harus bisa scroll jika sangat banyak */
-        #tab-results { 
-            height: auto !important; 
-            overflow: visible !important; 
+        /* Box Timer diperbaiki posisinya agar selalu di atas */
+        #quiz-timer-box { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: var(--red); 
+            color: white; 
+            padding: 10px 25px; 
+            border-radius: 50px; 
+            font-weight: bold; 
+            z-index: 9999; 
+            display: none; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
         }
         
-        #results-detail-list { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 10px; 
-            height: auto !important;
-        }
-
-        #quiz-timer-box { position: fixed; top: 20px; right: 20px; background: var(--red); color: white; padding: 10px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .res-detail { margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.03); border-radius: 8px; border-left: 5px solid var(--primary); }
         .ans-label { display: block; padding: 12px; background: rgba(0,0,0,0.02); margin: 8px 0; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
         .ans-label:hover { background: rgba(0,0,0,0.05); border-color: var(--gray); }
@@ -108,7 +122,7 @@
 
         <div id="tab-edit" class="hidden">
             <div class="card" style="border: 2px solid var(--primary)">
-                <div class="session-header">⚙️ Pengaturan Jadwal & Tema Gradasi</div>
+                <div class="session-header">⚙️ Pengaturan Jadwal & Tema</div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                     <div><small>Mulai:</small><input type="datetime-local" id="start-date"></div>
                     <div><small>Selesai:</small><input type="datetime-local" id="end-date"></div>
@@ -118,13 +132,13 @@
                 <label><small>Pilih Tema Visual:</small></label>
                 <select id="quiz-theme" onchange="applyTheme(this.value); saveSettings();">
                     <option value="default">Default Purple</option>
-                    <option value="grad-purple">Magic Purple (Gradasi)</option>
-                    <option value="grad-blue">Deep Ocean (Gradasi)</option>
-                    <option value="grad-sunset">Warm Sunset (Gradasi)</option>
-                    <option value="grad-aurora">Aurora Borealis (Gradasi)</option>
+                    <option value="grad-purple">Magic Purple</option>
+                    <option value="grad-blue">Deep Ocean</option>
+                    <option value="grad-sunset">Warm Sunset</option>
+                    <option value="grad-aurora">Aurora Borealis</option>
                     <option value="dark-mode">Midnight Dark</option>
                 </select>
-                <button class="btn btn-sm btn-outline" style="width:100%; margin-top:10px" onclick="copyLink()">🔗 Salin Link</button>
+                <button class="btn btn-sm btn-outline" style="width:100%; margin-top:10px" onclick="copyLink()">🔗 Salin Link Kuis</button>
             </div>
             <div id="editor-list"></div>
             <button class="btn btn-green" onclick="addQuestion()">+ Tambah Soal Baru</button>
@@ -139,12 +153,11 @@
                 <canvas id="scoreChart" style="max-height: 250px; width: 100%;"></canvas>
             </div>
             <div id="results-detail-list"></div>
-            <div style="height: 50px;"></div> 
         </div>
 
         <div id="tab-user" class="hidden">
             <div id="user-intro" class="card">
-                <h2 style="text-align:center">Data Email</h2>
+                <h2 style="text-align:center">Data Peserta</h2>
                 <p id="schedule-info" style="text-align:center; color:var(--red); font-weight:bold;"></p>
                 <input type="email" id="user-email" placeholder="Masukkan Email Anda">
                 <button id="btn-start-quiz" class="btn btn-green" onclick="startQuiz()">MULAI KERJAKAN</button>
@@ -154,10 +167,10 @@
 
         <div id="tab-success" class="hidden" style="text-align:center; padding:50px;">
             <h1 style="font-size: 3rem;">✅</h1>
-            <h2>Quiz Selesai😉</h2>
-            <h3>Terima Kasih</h3>
+            <h2>Kuis Selesai!</h2>
+            <p>Terima kasih telah mengerjakan.</p>
             <div id="final-score" style="font-size: 2rem; font-weight: bold; color: var(--green); margin: 20px 0;"></div>
-            <button class="btn btn-sm" onclick="location.reload()">Selesai</button>
+            <button class="btn btn-sm" onclick="location.reload()">Kembali ke Awal</button>
         </div>
     </div>
 </div>

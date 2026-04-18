@@ -7,6 +7,7 @@ window.onload = () => {
     if(isUser) { 
         switchTab('user'); 
         checkSchedule();
+        // Ambil tema dari penyimpanan
         applyTheme(localStorage.getItem(`theme_${ownerP}_${quizP}`) || 'default');
     } else {
         const sess = sessionStorage.getItem('active_editor');
@@ -15,6 +16,7 @@ window.onload = () => {
     }
 };
 
+// --- CORE FUNCTIONS ---
 function applyTheme(themeName) {
     const root = document.documentElement;
     const themes = {
@@ -35,15 +37,19 @@ function applyTheme(themeName) {
 
 function switchTab(t) {
     document.querySelectorAll('.content > div').forEach(div => div.classList.add('hidden'));
-    document.getElementById('tab-'+t).classList.remove('hidden');
+    const target = document.getElementById('tab-'+t);
+    if(target) target.classList.remove('hidden');
+    
     document.getElementById('admin-nav').classList.toggle('hidden', isUser || t === 'auth');
     document.querySelectorAll('.nav button').forEach(btn => btn.classList.remove('active'));
     if(document.getElementById('btn-nav-'+t)) document.getElementById('btn-nav-'+t).classList.add('active');
+    
     if(t === 'dashboard') renderDashboard();
     if(t === 'edit') renderEditor();
     if(t === 'results') renderResults();
 }
 
+// --- AUTH & DASHBOARD ---
 function handleAuth() {
     const e = document.getElementById('auth-email').value, p = document.getElementById('auth-pass').value;
     if(!e || !p) return alert("Isi lengkap!");
@@ -85,6 +91,7 @@ function createNewQuiz() {
     renderDashboard();
 }
 
+// --- EDITOR LOGIC ---
 function renderEditor() {
     questions = JSON.parse(localStorage.getItem(`q_${currentUser}_${activeQuiz}`)) || [];
     document.getElementById('start-date').value = localStorage.getItem(`start_${currentUser}_${activeQuiz}`) || "";
@@ -146,6 +153,7 @@ function copyLink() {
     navigator.clipboard.writeText(link); alert("Link Disalin!"); 
 }
 
+// --- USER/RESPONDENT LOGIC (FIXED) ---
 function checkSchedule() {
     const s = localStorage.getItem(`start_${ownerP}_${quizP}`), e = localStorage.getItem(`end_${ownerP}_${quizP}`);
     const now = new Date().getTime(), btn = document.getElementById('btn-start-quiz'), info = document.getElementById('schedule-info');
@@ -155,10 +163,20 @@ function checkSchedule() {
 }
 
 function startQuiz() {
-    if(!document.getElementById('user-email').value) return alert("Email wajib!");
-    questions = JSON.parse(localStorage.getItem(`q_${ownerP}_${quizP}`)) || [];
+    const emailVal = document.getElementById('user-email').value;
+    if(!emailVal) return alert("Email wajib!");
+
+    // PERBAIKAN: Ambil soal dengan validasi ketat
+    const rawData = localStorage.getItem(`q_${ownerP}_${quizP}`);
+    if(!rawData || JSON.parse(rawData).length === 0) {
+        alert("Gagal memuat kuis: Soal tidak ditemukan atau data kuis kosong.");
+        return; // Jangan lanjut ke renderStep
+    }
+
+    questions = JSON.parse(rawData);
     userResponses = questions.map(() => ({ answer: [], fileName: "" }));
-    currentSession = 1; renderStep();
+    currentSession = 1; 
+    renderStep();
 }
 
 async function handleFile(idx, file) {
@@ -172,12 +190,24 @@ async function handleFile(idx, file) {
 }
 
 function renderStep() {
+    // PERBAIKAN: Pastikan questions tidak kosong sebelum filter
+    if(!questions || questions.length === 0) {
+        alert("Data soal hilang, silakan refresh.");
+        location.reload();
+        return;
+    }
+
     const cont = document.getElementById('user-quiz-area');
     document.getElementById('user-intro').classList.add('hidden');
     document.getElementById('quiz-timer-box').style.display = "block";
     
     let sessQ = questions.filter(q => (q.session || 1) === currentSession);
-    if(sessQ.length === 0) { finishQuiz(); return; }
+    
+    // PERBAIKAN: Jika sesi kosong tapi soal ada, berarti kuis memang selesai
+    if(sessQ.length === 0) { 
+        finishQuiz(); 
+        return; 
+    }
 
     let html = `<div class="card"><div class="session-header">Sesi Ujian: ${currentSession}</div>`;
     questions.forEach((q, i) => {
@@ -204,12 +234,19 @@ function renderStep() {
     cont.innerHTML = html;
 
     let tl = sessQ[0].timer || 60;
+    document.getElementById('timer-val').innerText = tl;
     clearInterval(timerInt);
-    timerInt = setInterval(() => { tl--; document.getElementById('timer-val').innerText = tl; if(tl<=0) nextSess(); }, 1000);
+    timerInt = setInterval(() => { 
+        tl--; 
+        document.getElementById('timer-val').innerText = tl; 
+        if(tl<=0) {
+            clearInterval(timerInt);
+            nextSess(); 
+        }
+    }, 1000);
 }
 
 function updateAns(idx) {
-    const q = questions[idx];
     const inputs = document.querySelectorAll(`input[name="u-${idx}"]:checked`);
     userResponses[idx].answer = Array.from(inputs).map(el => parseInt(el.value));
 }
@@ -220,30 +257,39 @@ function nextSess() {
 }
 
 function finishQuiz() {
-    clearInterval(timerInt); document.getElementById('quiz-timer-box').style.display = "none";
+    clearInterval(timerInt); 
+    document.getElementById('quiz-timer-box').style.display = "none";
+    
+    // PERBAIKAN: Jika dipanggil tanpa soal, jangan simpan skor
+    if(questions.length === 0) return switchTab('user');
+
     let score = 0;
     questions.forEach((q, i) => {
-        const uAns = userResponses[i].answer;
-        const cAns = q.correct;
-        if((q.type==='pg'||q.type==='ganda') && cAns.length===uAns.length && cAns.every(v=>uAns.includes(v))) {
+        const uAns = userResponses[i].answer || [];
+        const cAns = q.correct || [];
+        if((q.type==='pg'||q.type==='ganda') && cAns.length > 0 && cAns.length===uAns.length && cAns.every(v=>uAns.includes(v))) {
             score += parseInt(q.points || 10);
         }
     });
+    
     let res = JSON.parse(localStorage.getItem(`r_${ownerP}_${quizP}`)) || [];
     res.push({ email: document.getElementById('user-email').value, score: score, responses: userResponses });
     localStorage.setItem(`r_${ownerP}_${quizP}`, JSON.stringify(res));
-    document.getElementById('final-score').innerText = "Skor Anda: " + score; switchTab('success');
+    
+    document.getElementById('final-score').innerText = "Skor Anda: " + score; 
+    switchTab('success');
 }
 
-// --- RESULTS LOGIC (FULL & DOWNLOAD) ---
+// --- RESULTS LOGIC ---
 function renderResults() {
     const data = JSON.parse(localStorage.getItem(`r_${currentUser}_${activeQuiz}`)) || [];
     const qData = JSON.parse(localStorage.getItem(`q_${currentUser}_${activeQuiz}`)) || [];
     const cont = document.getElementById('results-detail-list');
     
     if(myChart) myChart.destroy();
-    if(data.length > 0 && document.getElementById('scoreChart')) {
-        myChart = new Chart(document.getElementById('scoreChart'), { 
+    const ctx = document.getElementById('scoreChart');
+    if(data.length > 0 && ctx) {
+        myChart = new Chart(ctx, { 
             type: 'bar', 
             data: { labels: data.map(d=>d.email.split('@')[0]), datasets:[{label:'Skor', data: data.map(d=>d.score), backgroundColor:'#673ab7'}] },
             options: { responsive: true, maintainAspectRatio: false }
