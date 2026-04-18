@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizaja - Tugas PrakDasProg</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { 
+            --primary: #673ab7; 
+            --gradient: linear-gradient(135deg, #673ab7 0%, #9c27b0 100%);
+            --bg: #f0ebf8; --gray: #dadce0; --green: #1e8e3e; --red: #d93025; 
+            --card-bg: #ffffff; --text-color: #333333;
+            transition: all 0.4s ease;
+        }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; color: var(--text-color); }
+        
+        /* PERBAIKAN: Container tidak boleh overflow hidden agar bisa scroll */
+        .container { 
+            max-width: 950px; 
+            margin: 20px auto; 
+            background: var(--card-bg); 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+            min-height: 600px; 
+            overflow: visible; /* Diubah dari hidden agar data bawah kelihatan */
+        }
+        
+        .nav { display: flex; background: var(--card-bg); border-bottom: 1px solid var(--gray); position: sticky; top: 0; z-index: 1000; }
+        .nav button { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-weight: bold; color: var(--text-color); transition: 0.3s; }
+        .nav button.active { border-bottom: 3px solid var(--primary); color: var(--primary); }
+
+        .content { padding: 25px; height: auto; }
+        
+        /* PERBAIKAN: Card harus fleksibel tingginya */
+        .card { 
+            border: 1px solid var(--gray); 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            background: var(--card-bg); 
+            position: relative; 
+            height: auto !important; 
+        }
+
+        .session-header { background: var(--gradient); color: white; padding: 15px; margin: -20px -20px 20px -20px; border-radius: 10px 10px 0 0; font-weight: bold; }
+
+        input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+        .input-inline { width: 75px !important; display: inline-block; text-align: center; margin: 0 5px; }
+        
+        .btn { background: var(--gradient); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-green { background: linear-gradient(135deg, #1e8e3e, #34a853) !important; }
+        .btn-red { background: linear-gradient(135deg, #d93025, #ea4335) !important; }
+        .btn-outline { background: transparent !important; color: var(--primary); border: 2px solid var(--primary); box-shadow: none; }
+        .btn-sm { width: auto; padding: 6px 15px; font-size: 12px; }
+
+        .hidden { display: none !important; }
+        
+        /* PERBAIKAN: Area hasil harus bisa scroll jika sangat banyak */
+        #tab-results { 
+            height: auto !important; 
+            overflow: visible !important; 
+        }
+        
+        #results-detail-list { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            height: auto !important;
+        }
+
+        #quiz-timer-box { position: fixed; top: 20px; right: 20px; background: var(--red); color: white; padding: 10px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .res-detail { margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.03); border-radius: 8px; border-left: 5px solid var(--primary); }
+        .ans-label { display: block; padding: 12px; background: rgba(0,0,0,0.02); margin: 8px 0; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+        .ans-label:hover { background: rgba(0,0,0,0.05); border-color: var(--gray); }
+    </style>
+</head>
+<body>
+
+<div id="quiz-timer-box">⏳ <span id="timer-val">0</span>s</div>
+
+<div class="container">
+    <nav id="admin-nav" class="nav hidden">
+        <button id="btn-nav-dashboard" onclick="switchTab('dashboard')">DASHBOARD</button>
+        <button id="btn-nav-edit" onclick="switchTab('edit')">EDITOR SOAL</button>
+        <button id="btn-nav-results" onclick="switchTab('results')">HASIL UJIAN</button>
+        <button onclick="logout()" style="color:var(--red)">LOGOUT</button>
+    </nav>
+
+    <div class="content">
+        <div id="tab-auth" class="card">
+            <h2 id="auth-title" style="text-align:center">Login Editor</h2>
+            <input type="email" id="auth-email" placeholder="Email Editor">
+            <input type="password" id="auth-pass" placeholder="Password">
+            <button class="btn" onclick="handleAuth()" id="btn-main-auth">MASUK</button>
+            <button class="btn btn-outline" style="margin-top:10px" onclick="toggleAuthMode()" id="btn-switch-auth">Belum punya akun? Daftar</button>
+        </div>
+
+        <div id="tab-dashboard" class="hidden">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3>Kuis Saya</h3>
+                <button class="btn btn-green btn-sm" onclick="createNewQuiz()">+ Buat Kuis Baru</button>
+            </div>
+            <div id="quiz-list-container"></div>
+        </div>
+
+        <div id="tab-edit" class="hidden">
+            <div class="card" style="border: 2px solid var(--primary)">
+                <div class="session-header">⚙️ Pengaturan Jadwal & Tema Gradasi</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div><small>Mulai:</small><input type="datetime-local" id="start-date"></div>
+                    <div><small>Selesai:</small><input type="datetime-local" id="end-date"></div>
+                </div>
+                <button class="btn btn-sm btn-green" onclick="saveSettings()" style="margin-top:10px">💾 Simpan Jadwal</button>
+                <hr>
+                <label><small>Pilih Tema Visual:</small></label>
+                <select id="quiz-theme" onchange="applyTheme(this.value); saveSettings();">
+                    <option value="default">Default Purple</option>
+                    <option value="grad-purple">Magic Purple (Gradasi)</option>
+                    <option value="grad-blue">Deep Ocean (Gradasi)</option>
+                    <option value="grad-sunset">Warm Sunset (Gradasi)</option>
+                    <option value="grad-aurora">Aurora Borealis (Gradasi)</option>
+                    <option value="dark-mode">Midnight Dark</option>
+                </select>
+                <button class="btn btn-sm btn-outline" style="width:100%; margin-top:10px" onclick="copyLink()">🔗 Salin Link</button>
+            </div>
+            <div id="editor-list"></div>
+            <button class="btn btn-green" onclick="addQuestion()">+ Tambah Soal Baru</button>
+        </div>
+
+        <div id="tab-results" class="hidden">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Data Responden</h3>
+                <button class="btn btn-green btn-sm" onclick="exportExcel()">📥 Download Excel</button>
+            </div>
+            <div class="card">
+                <canvas id="scoreChart" style="max-height: 250px; width: 100%;"></canvas>
+            </div>
+            <div id="results-detail-list"></div>
+            <div style="height: 50px;"></div> 
+        </div>
+
+        <div id="tab-user" class="hidden">
+            <div id="user-intro" class="card">
+                <h2 style="text-align:center">Data Email</h2>
+                <p id="schedule-info" style="text-align:center; color:var(--red); font-weight:bold;"></p>
+                <input type="email" id="user-email" placeholder="Masukkan Email Anda">
+                <button id="btn-start-quiz" class="btn btn-green" onclick="startQuiz()">MULAI KERJAKAN</button>
+            </div>
+            <div id="user-quiz-area"></div>
+        </div>
+
+        <div id="tab-success" class="hidden" style="text-align:center; padding:50px;">
+            <h1 style="font-size: 3rem;">✅</h1>
+            <h2>Quiz Selesai😉</h2>
+            <h3>Terima Kasih</h3>
+            <div id="final-score" style="font-size: 2rem; font-weight: bold; color: var(--green); margin: 20px 0;"></div>
+            <button class="btn btn-sm" onclick="location.reload()">Selesai</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
